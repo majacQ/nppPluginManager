@@ -334,12 +334,12 @@ const TCHAR* TiXmlBase::ReadText(	const TCHAR* p,
 		while (	   p && *p
 				&& !StringEqual( p, endTag, caseInsensitive ) )
 		{
-			if ( *p == '\r' || *p == '\n' )
+			if ( *p == TEXT('\r') || *p == TEXT('\n') )
 			{
 				whitespace = true;
 				++p;
 			}
-			else if ( isspace( *p ) )
+			else if (_istspace( *p ) )
 			{
 				whitespace = true;
 				++p;
@@ -771,7 +771,7 @@ const TCHAR* TiXmlElement::Parse( const TCHAR* p, TiXmlParsingData* data )
 			}
 
 			attrib->SetDocument( document );
-			const TCHAR* pErr = p;
+			pErr = p;
 			p = attrib->Parse( p, data );
 
 			if ( !p || !*p )
@@ -903,7 +903,7 @@ const TCHAR* TiXmlUnknown::Parse( const TCHAR* p, TiXmlParsingData* data )
 	{
 		if ( document )	document->SetError( TIXML_ERROR_PARSING_UNKNOWN, 0, 0 );
 	}
-	if ( *p == '>' )
+	if (p && *p == '>')
 		return p+1;
 	return p;
 }

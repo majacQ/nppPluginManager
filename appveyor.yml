@@ -1,14 +1,20 @@
+  <<<<<<< rename_vs
 version: 1.4.3.{build}
 image: Visual Studio 2015
 
 
 clone_depth: 1
+  =======
+version: 1.4.12.{build}
+image: Visual Studio 2017
+  >>>>>>> x64
 
 
 environment:
   matrix:
-  - PlatformToolset: v140_xp
-  - PlatformToolset: v120_xp
+  #- PlatformToolset: v120_xp
+  #- PlatformToolset: v140_xp
+  - PlatformToolset: v141_xp
 
 platform:
     - x64
@@ -22,30 +28,14 @@ configuration:
 install:
     - git submodule -q update --init
     - if "%platform%"=="x64" set archi=amd64
+    - if "%platform%"=="x64" set platform_input=x64
+
     - if "%platform%"=="Win32" set archi=x86
-    - call "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" %archi%
+    - if "%platform%"=="Win32" set platform_input=Win32
 
-build:
-    parallel: true                  # enable MSBuild parallel builds
-    verbosity: minimal
-
-before_build:
-- ps: |
-    Write-Output "Configuration: $env:CONFIGURATION"
-    Write-Output "Platform: $env:PLATFORM"
-    $generator = switch ($env:PLATFORMTOOLSET)
-    {
-        "v140" {"Visual Studio 14 2015"}
-        "v140_xp" {"Visual Studio 14 2015"}
-        "v120" {"Visual Studio 12 2013"}
-        "v120_xp" {"Visual Studio 12 2013"}
-    }
-    if ($env:PLATFORM -eq "x64")
-    {
-        $generator = "$generator Win64"
-    }
-    
-
+    - if "%PlatformToolset%"=="v141_xp" call "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\vcvarsall.bat" %archi%
+    - if "%PlatformToolset%"=="v140_xp" call "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" %archi%
+    - if "%PlatformToolset%"=="v120_xp" call "C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\vcvarsall.bat" %archi%
 
 build_script:
     - cd "%APPVEYOR_BUILD_FOLDER%"
@@ -54,7 +44,39 @@ build_script:
     - mkdir NotepadTest\x64\plugins
     - mkdir NotepadTest\x64\updater
     - copy paths.props.appveyor paths.props
-    - msbuild PluginManager.sln /m /p:configuration="%configuration%" /p:platform="%platform%" /p:PlatformToolset="%PlatformToolset%"
+    - msbuild PluginManager.sln /m /p:configuration="%configuration%" /p:platform="%platform_input%" /p:PlatformToolset="%PlatformToolset%" /logger:"C:\Program Files\AppVeyor\BuildAgent\Appveyor.MSBuildLogger.dll"
+
+after_build:
+    - cd "%APPVEYOR_BUILD_FOLDER%"
+    - ps: >-
+        if ($($env:APPVEYOR_REPO_TAG) -eq "true" -and $env:CONFIGURATION -eq "Release" -and $env:PLATFORMTOOLSET -eq "v141_xp") {
+            if ($env:PLATFORM_INPUT -eq "x64" -and $env:CONFIGURATION -eq "Release") {
+                $PluginManagerZipFileName = "PluginManager_$($env:APPVEYOR_REPO_TAG_NAME)_x64.zip"
+                7z a $PluginManagerZipFileName .\NotepadTest\x64\*
+            }
+
+            if ($env:PLATFORM_INPUT -eq "Win32" -and $env:CONFIGURATION -eq "Release") {
+                $PluginManagerZipFileName = "PluginManager_$($env:APPVEYOR_REPO_TAG_NAME)_UNI.zip"
+                7z a $PluginManagerZipFileName .\NotepadTest\unicode\*
+            }
+        }
+
+artifacts:
+  - path: PluginManager_*.zip
+    name: releases
+
+deploy:
+    provider: GitHub
+    auth_token:
+        secure: z5nuqsjm/L3HYsjSkMsVBH8EPAK17v3OOXzZDyp9hWx9J6Ff/gDYtbzWMoUtW0dI
+    artifact: releases
+    draft: false
+    prerelease: false
+    force_update: true
+    on:
+        appveyor_repo_tag: true
+        PlatformToolset: v141_xp
+        configuration: Release
 
 after_build:
     - cd "%APPVEYOR_BUILD_FOLDER%"
