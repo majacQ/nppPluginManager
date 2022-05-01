@@ -29,7 +29,11 @@ using namespace std;
 
 
 Plugin::Plugin(void)
-: _isInstalled(FALSE), _detailsAdded(FALSE), _updateDetailsAdded(FALSE), _isLibrary(FALSE)
+: _isInstalled(FALSE),
+  _detailsAdded(FALSE),
+  _updateDetailsAdded(FALSE),
+  _installedForAllUsers(FALSE),
+  _isLibrary(FALSE)
 {
 }
 
@@ -268,10 +272,7 @@ BOOL Plugin::isInstalled()
 
 void Plugin::addVersion(const TCHAR* hash, const PluginVersion &version)
 {
-	tstring *hashString = new tstring;
-	*hashString = hash;
-
-	_versionMap[(*hashString)] = version;
+	_versionMap[hash] = version;
 }
 
 void Plugin::addBadVersion(const PluginVersion &version, const TCHAR* report)
@@ -406,7 +407,6 @@ InstallStatus Plugin::runSteps(InstallStepContainer steps, tstring& basePath, Ti
 
 void Plugin::addDependency(const TCHAR* pluginName)
 {
-	tstring plugin = pluginName;
 	_dependencies.push_back(pluginName);
 }
 

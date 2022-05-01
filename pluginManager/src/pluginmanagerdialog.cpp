@@ -41,8 +41,23 @@ using namespace std::placeholders;
 
 
 PluginManagerDialog::PluginManagerDialog()
+	: _HSource(nullptr), 
+	  _hCloseButton(nullptr),
+	  _hSettingsButton(nullptr),
+	  _hNbcLogo(nullptr),
+	  _pluginList(nullptr),
+	  _leftMargin(0),
+	  _rightMargin(0),
+	  _topMargin(0), 
+	  _bottomMargin(0),
+	  _tabBottomOffset(0),
+	  _closeButtonBottomOffset(0), 
+	  _closeButtonRightOffset(0),
+	  _closeButtonWidth(0), 
+	  _closeButtonHeight(0),
+	  _isDownloading(false),
+	  _downloadThread(0)
 {
-	_pluginList = NULL;
 }
 
 void PluginManagerDialog::doDialog()
@@ -111,7 +126,7 @@ INT_PTR CALLBACK PluginManagerDialog::availableTabDlgProc(HWND hWnd, UINT Messag
 		case WM_NOTIFY:
 		{
 			PluginManagerDialog *dlg = reinterpret_cast<PluginManagerDialog*>(::GetWindowLongPtr(hWnd, GWLP_USERDATA));
-            HWND hwndFrom = ((LPNMHDR)lParam)->hwndFrom;
+            //HWND hwndFrom = ((LPNMHDR)lParam)->hwndFrom;
 
 			if (dlg && ((LPNMHDR)lParam)->hwndFrom == dlg->_tabs[TAB_AVAILABLE].hListView)
 				return dlg->_availableListView.notify(wParam, lParam);
@@ -137,7 +152,7 @@ INT_PTR CALLBACK PluginManagerDialog::availableTabDlgProc(HWND hWnd, UINT Messag
 				}
 
 				case IDC_NBCLOGO:
-                    ShellExecute(NULL, L"open", L"https://www.nexinto.com/nbc/?utm_source=npp&utm_content=content", NULL, NULL, SW_SHOW);
+                    ShellExecute(NULL, L"open", L"https://www.nexinto.com/en/business-cloud/?utm_source=logo&utm_medium=embed&utm_campaign=npp", NULL, NULL, SW_SHOW);
                     break;
 			}
 			break;
@@ -629,18 +644,18 @@ void PluginManagerDialog::sizeWindow(int width, int height)
 {
 	// Size the tab control
 	::MoveWindow(_tabHeader.hwndTab, _leftMargin, _topMargin, width - _leftMargin - _rightMargin, height - _tabBottomOffset, FALSE);
-	
-	// Move the close button
-	::MoveWindow(_hCloseButton, width - _closeButtonRightOffset, height - _closeButtonBottomOffset, _closeButtonWidth, _closeButtonHeight, FALSE);
-
-	// Move the settings button
-	::MoveWindow(_hSettingsButton, _leftMargin, height - _closeButtonBottomOffset, _closeButtonWidth, _closeButtonHeight, FALSE);
-
     
     // Move the sponsor message 
     for(std::list<std::shared_ptr<POSITIONINFO>>::iterator it = _bottomComponents.begin(); it != _bottomComponents.end(); it++) {
 		::MoveWindow((*it)->handle, (*it)->leftOffset, height - (*it)->bottomOffset, (*it)->width, (*it)->height, FALSE);
 	}
+
+	// Move the settings button, _closeButtonHeight is also the width between settings and close buttons
+	::MoveWindow(_hSettingsButton, width - _closeButtonRightOffset - _closeButtonWidth - _closeButtonHeight, height - _closeButtonBottomOffset, _closeButtonWidth, _closeButtonHeight, FALSE);	
+
+	// Move the close button, move last to have let it draw last and have it at the top, also on small dialog sizes
+	::MoveWindow(_hCloseButton, width - _closeButtonRightOffset, height - _closeButtonBottomOffset, _closeButtonWidth, _closeButtonHeight, FALSE);
+
 	::InvalidateRect(_hSelf, NULL, TRUE);
 }
 
@@ -673,7 +688,7 @@ void PluginManagerDialog::sizeTab(TABPAGE tab, int width, int height)
 void PluginManagerDialog::downloadAndPopulate(PVOID pvoid)
 {
 	PluginManagerDialog *dlg = reinterpret_cast<PluginManagerDialog *>(pvoid);
-    dlg->_isDownloading = TRUE;
+    dlg->_isDownloading = true;
 	if (!dlg->_pluginList)
 	{
 		dlg->_pluginList = new PluginList();
