@@ -1,27 +1,40 @@
-// gpup.cpp : Defines the entry point for the application.
-//
+/*
+This file is part of GPUP, which is part of Plugin Manager 
+Plugin for Notepad++
+
+Copyright (C)2009-2010 Dave Brotherstone <davegb@pobox.com>
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+*/
 
 #include "stdafx.h"
 #include "gpup.h"
 
-#include <tchar.h>
-#include <string>
-#include <list>
-#include <boost/shared_ptr.hpp>
 
-#pragma warning (push)
-#pragma warning (disable : 4512) // assignment operator could not be generated
-#include <boost/bind.hpp>
-#pragma warning (pop)
 
-#include <boost/function.hpp>
+
 
 
 #include "Options.h"
 #include "tinyxml/tinyxml.h"
 #include "libinstall/InstallStep.h"
 #include "libinstall/InstallStepFactory.h"
-
+#include "libinstall/VariableHandler.h"
+#include "libinstall/CancelToken.h"
+#include "libinstall/ModuleInfo.h"
+#include "ProgressDialog.h"
 
 #define RETURN_SUCCESS				0
 #define RETURN_INVALID_PARAMETERS   1
@@ -32,12 +45,12 @@
 #define MAX_WRITE_ATTEMPTS			10
 
 // Global Variables:
-HINSTANCE hInst;								// current instance
-
+HINSTANCE	   hInst;								// current instance
+ProgressDialog *g_progressDialog;
 
 
 using namespace std;
-using namespace boost;
+using namespace std::placeholders;
 
 
 BOOL parseCommandLine(const TCHAR* cmdLine, Options& options)
@@ -123,6 +136,7 @@ BOOL parseCommandLine(const TCHAR* cmdLine, Options& options)
 	if (!arg->empty())
 		argList.push_back(arg);
 	
+    options.setArgList(argList);
 	
 	list<tstring*>::iterator iter = argList.begin();
 	while(iter != argList.end())
@@ -145,7 +159,22 @@ BOOL parseCommandLine(const TCHAR* cmdLine, Options& options)
 			if (iter != argList.end())
 				options.setActionsFile((*iter)->c_str());
 		}
-
+		else if (*(*iter) == _T("-c"))
+		{
+			++iter;
+			if (iter != argList.end())
+				options.setCopyFrom((*iter)->c_str());
+		}
+		else if (*(*iter) == _T("-t"))
+		{
+			++iter;
+			if (iter != argList.end())
+				options.setCopyTo((*iter)->c_str());
+		}
+        else if (*(*iter) == _T("-M"))
+        {
+            options.setIsAdmin(TRUE);
+        }
 
 		++iter;
 	}
@@ -160,39 +189,44 @@ BOOL parseCommandLine(const TCHAR* cmdLine, Options& options)
 BOOL closeMainProgram(Options &options)
 {
 	HWND h = ::FindWindowEx(NULL, NULL, options.getWindowName().c_str(), NULL);
+	
+	DWORD dwPid;
+	HANDLE hProc = NULL;
+
 	while (h)
 	{
+		
+		
+		GetWindowThreadProcessId(h, &dwPid);
+		if (dwPid) // Wait for process to terminate
+		{
+			hProc = OpenProcess(SYNCHRONIZE|PROCESS_TERMINATE, FALSE, dwPid);
+		}
+		else 
+		{
+			hProc = NULL;
+		}
+		
 		if (!::SendMessage(h, WM_CLOSE, 0, 0))
 			return FALSE;
 
+		if (hProc)
+		{
+			WaitForSingleObject(hProc, INFINITE);
+		}
+
 		h = ::FindWindowEx(NULL, NULL, options.getWindowName().c_str(), NULL);
 	}
-/*
-	int attempts = 0;
-	HANDLE hExe = INVALID_HANDLE_VALUE;
 
-	while (hExe == INVALID_HANDLE_VALUE && attempts < MAX_WRITE_ATTEMPTS)
+	if (hProc)
 	{
-		hExe = ::CreateFile(options.getExeName().c_str(), 
-			GENERIC_READ | GENERIC_WRITE, // Desired Access
-			0,						      // Share more
-			NULL,						  // Security Attributes
-			OPEN_EXISTING,				  // Creation Disposition
-			0,							  // Flags and attributes
-			NULL);						  // Template filename
-
-		++attempts;
-
-		if (hExe == INVALID_HANDLE_VALUE)
-			Sleep(100);
+		CloseHandle(hProc);
+		hProc = NULL;
 	}
-	if (hExe == INVALID_HANDLE_VALUE)
-		return FALSE;
-	else
-	*/
 
-		return TRUE;
+	return TRUE;
 }
+
 
 void startNewInstance(const tstring& exeName)
 {
@@ -216,17 +250,43 @@ void startNewInstance(const tstring& exeName)
 
 }
 
-void setStatus(const TCHAR* /*status*/)
+
+
+
+void showProgressDialog()
 {
+	g_progressDialog = new ProgressDialog(hInst);
+	g_progressDialog->doDialog();
 }
+
+void closeProgressDialog()
+{
+    g_progressDialog->close();
+}
+
+void setStatus(const TCHAR* status)
+{
+	g_progressDialog->setStatus(status);
+}
+
+void setStepCount(int stepCount)
+{
+	g_progressDialog->setStepCount(stepCount);
+}
+
 
 void stepProgress(int /*percentageComplete*/)
 {
+	
 }
 
 
 BOOL processActionsFile(const tstring& actionsFile)
 {
+    ModuleInfo moduleInfo(::GetModuleHandle(NULL), NULL);
+
+    CancelToken cancelToken;
+
 	TiXmlDocument xmlDocument(actionsFile.c_str());
 	if (xmlDocument.LoadFile())
 	{
@@ -236,18 +296,61 @@ BOOL processActionsFile(const tstring& actionsFile)
 
 		if (install && !install->NoChildren())
 		{
-			InstallStepFactory installStepFactory(NULL);
+			VariableHandler variableHandler;
+            
+			InstallStepFactory installStepFactory(&variableHandler);
 			TiXmlElement *step = install->FirstChildElement();
+			int stepCount = 0;
 			while (step)
 			{
-				shared_ptr<InstallStep> installStep = installStepFactory.create(step, "", 0);
+				stepCount++;
+				step = static_cast<TiXmlElement*>(install->IterateChildren(step));
+			} 
 
-				installStep->perform(basePath,           // basePath
-									 &stillToComplete,   // forGpup (still can't achieve, so basically a fail)
-									 boost::bind(&setStatus, _1),     // status update function
-									 boost::bind(&stepProgress, _1)); // step progress function
-			
+			setStepCount(stepCount);
+
+
+			step = install->FirstChildElement();
+			while (step)
+			{
+				std::shared_ptr<InstallStep> installStep = installStepFactory.create(step);
+				// Progress to next step
 				step = (TiXmlElement*) install->IterateChildren(step);
+
+				// Not all steps are actually an install step, some are just setting variables
+				if (installStep == NULL) {
+					g_progressDialog->stepComplete();
+					continue;
+				}
+
+				StepStatus stepStatus;
+				stepStatus = installStep->perform(basePath,           // basePath
+												&stillToComplete,   // forGpup (still can't achieve, so basically a fail)
+												std::bind(&setStatus, _1),     // status update function
+												std::bind(&stepProgress, _1),
+												&moduleInfo,
+												cancelToken); // step progress function
+
+				// If it said it needed to do it in GPUP, then maybe N++ hasn't quite
+				// finished quitting yet.
+				int retryCount = 0;
+				while (stepStatus == STEPSTATUS_NEEDGPUP && retryCount < 20)
+				{
+					::Sleep(500);
+					++retryCount;
+					stepStatus = installStep->perform(basePath,           // basePath
+												&stillToComplete,   // forGpup (still can't achieve, so basically a fail)
+												std::bind(&setStatus, _1),     // status update function
+												std::bind(&stepProgress, _1), // step progress function
+												&moduleInfo,
+												cancelToken); 
+
+
+
+				}
+
+				g_progressDialog->stepComplete();				
+
 			}
 
 		}	
@@ -263,6 +366,63 @@ BOOL processActionsFile(const tstring& actionsFile)
 
 }
 
+BOOL actionsFileHasActions(const tstring& actionsFile) 
+{
+    TiXmlDocument xmlDocument(actionsFile.c_str());
+	if (xmlDocument.LoadFile())
+	{
+		TiXmlElement *install = xmlDocument.FirstChildElement(_T("install"));
+		TiXmlElement stillToComplete(_T("install"));
+
+		if (install && !install->NoChildren())
+		{
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+
+DWORD runGpupAsAdmin(const Options& options) {
+    const std::list<tstring*> args = options.getArgList();
+    tstring parameters;
+    
+    
+    for(std::list<tstring*>::const_iterator it = args.begin(); it != args.end(); ++it) {
+        parameters.append(_T("\""));
+        parameters.append(*(*it));
+        parameters.append(_T("\" "));
+    }
+
+    parameters.append(_T("-M"));
+
+    TCHAR gpupExeName[MAX_PATH];
+    GetModuleFileName(0, gpupExeName, MAX_PATH);
+
+    DWORD version = ::GetVersion();
+    DWORD majorVersion = LOBYTE(version);
+
+    BOOL isVistaOrGreater = (majorVersion >= 6);
+
+    SHELLEXECUTEINFO shExecInfo = {0};
+    shExecInfo.cbSize = sizeof(SHELLEXECUTEINFO);
+    shExecInfo.fMask = SEE_MASK_NOCLOSEPROCESS;
+    shExecInfo.hwnd = NULL;
+    shExecInfo.lpVerb = isVistaOrGreater ? _T("runas") : _T("open");
+    shExecInfo.lpFile = gpupExeName;
+    shExecInfo.lpParameters = parameters.c_str();   
+    shExecInfo.lpDirectory = NULL;
+    shExecInfo.nShow = SW_SHOW;
+    shExecInfo.hInstApp = NULL; 
+    ShellExecuteEx(&shExecInfo);
+    WaitForSingleObject(shExecInfo.hProcess,INFINITE);
+    
+    DWORD exitCode;
+    GetExitCodeProcess(shExecInfo.hProcess, &exitCode);
+    return exitCode;
+}
+
+
 
 int APIENTRY _tWinMain(HINSTANCE hInstance,
                      HINSTANCE hPrevInstance,
@@ -273,9 +433,19 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 	UNREFERENCED_PARAMETER(hInstance);
 	UNREFERENCED_PARAMETER(nCmdShow);
 
+	hInst = hInstance;
+
 	Options options;
-	
 	parseCommandLine(lpCmdLine, options);
+
+	// If this is just a copy request
+	if (!options.getCopyFrom().empty() && !options.getCopyTo().empty())
+	{
+		BOOL copyStatus = CopyFile(options.getCopyFrom().c_str(), options.getCopyTo().c_str(), false);
+		// We don't delete the old file, leave that to the caller
+		// Return 0 for success, 1 for failure
+		return copyStatus ? 0 : 1;
+	}
 
 	if (options.getWindowName() == _T("")
 		|| options.getExeName() == _T(""))
@@ -286,6 +456,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 		return RETURN_INVALID_PARAMETERS;
 	}
 
+    showProgressDialog();
+	
+	setStatus(_T("Waiting for Notepad++ to close"));
 
 	BOOL allClosed = closeMainProgram(options);
 
@@ -294,24 +467,32 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 		return RETURN_CANCELLED;
 	}
 
-	//::MessageBox(NULL, _T("Pause..."), _T("Timing test"), 0);
-
+	
+    BOOL shouldRestartProcess = TRUE;
+    DWORD returnValue = RETURN_SUCCESS;
 	if (options.getActionsFile() != _T(""))
 	{
-		if (!processActionsFile(options.getActionsFile()))
-		{
-			MessageBox(NULL, _T("Error finishing installation steps.  Plugin installation has not completed successfully."), _T("Plugin Manager"), MB_OK | MB_ICONERROR);
+        if (!options.isAdmin() && actionsFileHasActions(options.getActionsFile())) 
+        {
+            closeProgressDialog();
+             returnValue = runGpupAsAdmin(options);
+        }
+        else 
+        {
+            shouldRestartProcess = FALSE;
+            if (!processActionsFile(options.getActionsFile())) 
+            {
+			    MessageBox(NULL, _T("Error finishing installation steps.  Plugin installation has not completed successfully."), _T("Plugin Manager"), MB_OK | MB_ICONERROR);
+            }
 		}
 	}
 
-	startNewInstance(options.getExeName());
+    if (shouldRestartProcess) 
+    {
+	    startNewInstance(options.getExeName());
+    }
 	
 
-	return RETURN_SUCCESS;
+	return returnValue;
 
 }
-
-
-
-
-

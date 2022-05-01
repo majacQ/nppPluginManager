@@ -1,7 +1,5 @@
 // Microsoft Visual C++ generated resource script.
 //
-#include <windows.h>
-
 #include "resource.h"
 
 #define APSTUDIO_READONLY_SYMBOLS
@@ -15,47 +13,63 @@
 #undef APSTUDIO_READONLY_SYMBOLS
 
 /////////////////////////////////////////////////////////////////////////////
-// English (U.K.) resources
+// English (United States) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+#pragma code_page(1252)
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Bitmap
+//
+
+IDB_BITMAP1             BITMAP                  "..\\res\\nbc_logo.bmp"
+#endif    // English (United States) resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+/////////////////////////////////////////////////////////////////////////////
+// English (United Kingdom) resources
 
 #if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENG)
-#ifdef _WIN32
 LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_UK
 #pragma code_page(1252)
-#endif //_WIN32
 
 /////////////////////////////////////////////////////////////////////////////
 //
 // Dialog
 //
 
-IDD_TABINSTALLED DIALOGEX 0, 0, 392, 266
+IDD_TABINSTALLED DIALOGEX 0, 0, 400, 360
 STYLE DS_SETFONT | DS_FIXEDSYS | WS_CHILD | WS_SYSMENU
 FONT 8, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
-    CONTROL         "",IDC_LISTINSTALLED,"SysListView32",LVS_REPORT | LVS_ALIGNLEFT | WS_BORDER | WS_TABSTOP,7,7,378,175
-    EDITTEXT        IDC_EDITINSTALLED,7,185,378,46,ES_MULTILINE | ES_READONLY | WS_VSCROLL
-    PUSHBUTTON      "Remove",IDC_BUTTONREMOVE,325,237,50,14
+    CONTROL         "",IDC_LISTINSTALLED,"SysListView32",LVS_REPORT | LVS_ALIGNLEFT | WS_BORDER | WS_TABSTOP,7,7,386,200
+    EDITTEXT        IDC_EDITINSTALLED,7,210,386,117,ES_MULTILINE | ES_READONLY | WS_VSCROLL
+    PUSHBUTTON      "Remove",IDC_BUTTONREMOVE,325,337,50,14
+    PUSHBUTTON      "Reinstall",IDC_REINSTALL,266,337,50,14
 END
 
-IDD_TABUPDATES DIALOGEX 0, 0, 392, 266
+IDD_TABUPDATES DIALOGEX 0, 0, 400, 360
 STYLE DS_SETFONT | DS_FIXEDSYS | WS_CHILD | WS_SYSMENU
 FONT 8, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
-    CONTROL         "",IDC_LISTUPDATES,"SysListView32",LVS_REPORT | LVS_ALIGNLEFT | WS_BORDER | WS_TABSTOP,7,7,378,175
-    EDITTEXT        IDC_EDITUPDATE,7,185,378,46,ES_MULTILINE | ES_READONLY | WS_VSCROLL
-    PUSHBUTTON      "Update",IDC_BUTTONUPDATE,325,237,50,14
+    CONTROL         "",IDC_LISTUPDATES,"SysListView32",LVS_REPORT | LVS_ALIGNLEFT | WS_BORDER | WS_TABSTOP,7,7,386,200
+    EDITTEXT        IDC_EDITUPDATE,7,210,386,117,ES_MULTILINE | ES_READONLY | WS_VSCROLL
+    PUSHBUTTON      "Update",IDC_BUTTONUPDATE,325,338,50,14
 END
 
-IDD_TABAVAILABLE DIALOGEX 0, 0, 392, 266
+IDD_TABAVAILABLE DIALOGEX 0, 0, 400, 360
 STYLE DS_SETFONT | DS_FIXEDSYS | WS_CHILD | WS_SYSMENU
 FONT 8, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
-    CONTROL         "",IDC_LISTAVAILABLE,"SysListView32",LVS_REPORT | LVS_ALIGNLEFT | WS_BORDER | WS_TABSTOP,7,7,378,175
-    EDITTEXT        IDC_EDITAVAILABLE,7,185,378,46,ES_MULTILINE | ES_READONLY | WS_VSCROLL
-    PUSHBUTTON      "Install",IDC_BUTTONINSTALL,325,237,50,14
+    CONTROL         "",IDC_LISTAVAILABLE,"SysListView32",LVS_REPORT | LVS_ALIGNLEFT | WS_BORDER | WS_TABSTOP,7,7,386,200
+    EDITTEXT        IDC_EDITAVAILABLE,7,210,386,117,ES_MULTILINE | ES_READONLY | WS_VSCROLL
+    PUSHBUTTON      "Install",IDC_BUTTONINSTALL,325,337,50,14
 END
 
-IDD_PROGRESSDIALOG DIALOGEX 0, 0, 258, 112
+IDD_PROGRESSDIALOG DIALOGEX 0, 0, 258, 131
 STYLE DS_SETFONT | DS_FIXEDSYS | WS_POPUP | WS_BORDER | WS_SYSMENU
 FONT 8, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
@@ -63,20 +77,42 @@ BEGIN
     CONTROL         "",IDC_PROGRESSOVERALL,"msctls_progress32",WS_BORDER,7,76,244,14
     LTEXT           "Current Action:",IDC_LABELCURRENT,7,11,244,19
     LTEXT           "Overall Progress:",IDC_STATIC,7,64,56,8
+    PUSHBUTTON      "Cancel",IDCANCEL,103,102,50,14
 END
 
-IDD_CONFIGDIALOG DIALOGEX 0, 0, 266, 95
+IDD_CONFIGDIALOG DIALOGEX 0, 0, 294, 221
 STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "Plugin Manager Settings"
 FONT 8, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
-    DEFPUSHBUTTON   "OK",IDOK,73,74,63,14
-    PUSHBUTTON      "Cancel",IDCANCEL,153,74,63,14
-    EDITTEXT        IDC_PROXYADDRESS,59,7,200,14,ES_AUTOHSCROLL
-    EDITTEXT        IDC_PROXYPORT,59,30,40,14,ES_AUTOHSCROLL
-    LTEXT           "Proxy address:",IDC_STATIC,7,9,50,8
-    LTEXT           "Proxy port:",IDC_STATIC,7,34,38,8
-    CONTROL         "Notify of plugin updates at startup",IDC_NOTIFY,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,59,54,127,10
+    CONTROL         "Notify of plugin updates at startup",IDC_NOTIFY,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,59,8,127,10
+    LTEXT           "Check for plugin updates every ",IDC_STATIC,59,22,103,8
+    EDITTEXT        IDC_DAYSTOCHECK,164,19,20,14,ES_AUTOHSCROLL
+    CONTROL         "Show unstable plugins",IDC_SHOWUNSTABLE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,60,46,87,10
+    CONTROL         "Install plugins for all users",IDC_INSTALLALLUSERS,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,60,63,99,10
+    DEFPUSHBUTTON   "OK",IDOK,71,200,63,14
+    PUSHBUTTON      "Cancel",IDCANCEL,151,200,63,14
+    LTEXT           "days",IDC_STATIC,189,22,69,8
+    GROUPBOX        "Information",IDC_STATIC,13,122,278,72
+    EDITTEXT        IDC_INFOTEXT,16,136,264,51,ES_MULTILINE | ES_READONLY | NOT WS_BORDER | NOT WS_TABSTOP
+    CONTROL         "Force HTTP instead of HTTPS for downloading Plugin List",IDC_FORCEHTTP,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,60,80,196,10
+    CONTROL         "Use development plugin list (may contain untested, unvalidated or uninstallable plugins)",IDC_USEDEVPLUGINLIST,
+                    "Button",BS_AUTOCHECKBOX | BS_MULTILINE | WS_TABSTOP,59,94,216,21
+END
+
+IDD_UPDATESNOTIFY DIALOGEX 0, 0, 400, 360
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Notepad++ Plugin Manager"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    CONTROL         "",IDC_LISTUPDATES,"SysListView32",LVS_REPORT | LVS_ALIGNLEFT | WS_BORDER | WS_TABSTOP,7,21,386,200
+    LTEXT           "The following plugin updates are available:",IDC_STATIC,7,7,137,8
+    PUSHBUTTON      "Update Selected",IDC_UPDATE,7,338,100,14
+    PUSHBUTTON      "Ignore Selected Updates",IDC_IGNORE,154,338,100,14
+    PUSHBUTTON      "Cancel",IDCANCEL,295,338,100,14
+    EDITTEXT        IDC_UPDATEDESC,7,224,386,105,ES_MULTILINE | ES_AUTOVSCROLL | ES_AUTOHSCROLL | ES_READONLY | WS_VSCROLL
 END
 
 
@@ -86,51 +122,39 @@ END
 //
 
 #ifdef APSTUDIO_INVOKED
-GUIDELINES DESIGNINFO 
+GUIDELINES DESIGNINFO
 BEGIN
     IDD_TABINSTALLED, DIALOG
     BEGIN
-        LEFTMARGIN, 7
-        RIGHTMARGIN, 335
-        TOPMARGIN, 7
-        BOTTOMMARGIN, 191
     END
 
     IDD_TABUPDATES, DIALOG
     BEGIN
-        LEFTMARGIN, 7
-        RIGHTMARGIN, 385
-        TOPMARGIN, 7
-        BOTTOMMARGIN, 260
     END
 
     IDD_TABAVAILABLE, DIALOG
     BEGIN
-        LEFTMARGIN, 7
-        RIGHTMARGIN, 385
-        TOPMARGIN, 7
-        BOTTOMMARGIN, 259
+        BOTTOMMARGIN, 251
     END
 
     IDD_PROGRESSDIALOG, DIALOG
     BEGIN
-        LEFTMARGIN, 7
-        RIGHTMARGIN, 251
-        TOPMARGIN, 7
-        BOTTOMMARGIN, 104
+        BOTTOMMARGIN, 130
     END
 
     IDD_CONFIGDIALOG, DIALOG
     BEGIN
-        LEFTMARGIN, 7
-        RIGHTMARGIN, 259
-        TOPMARGIN, 7
-        BOTTOMMARGIN, 88
+        RIGHTMARGIN, 291
+        BOTTOMMARGIN, 214
+    END
+
+    IDD_UPDATESNOTIFY, DIALOG
+    BEGIN
     END
 END
 #endif    // APSTUDIO_INVOKED
 
-#endif    // English (U.K.) resources
+#endif    // English (United Kingdom) resources
 /////////////////////////////////////////////////////////////////////////////
 
 
@@ -138,33 +162,29 @@ END
 // English (South Africa) resources
 
 #if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENS)
-#ifdef _WIN32
 LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_SOUTH_AFRICA
 #pragma code_page(1252)
-#endif //_WIN32
 
 /////////////////////////////////////////////////////////////////////////////
 //
 // Dialog
 //
 
-IDD_PLUGINMANAGER_DLG DIALOGEX 0, 0, 346, 281
+IDD_PLUGINMANAGER_DLG DIALOGEX 0, 0, 445, 374
 STYLE DS_SETFONT | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_THICKFRAME
 CAPTION "Plugin Manager"
 FONT 8, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
-    DEFPUSHBUTTON   "Close",IDOK,290,260,50,14
-    PUSHBUTTON      "Settings",IDC_SETTINGS,1,261,50,14
-    CONTROL         "",IDC_PLUGINTABCTRL,"SysTabControl32",0x0,1,1,340,253
-END
-
-IDD_ABOUT_DLG DIALOGEX 0, 0, 186, 95
-STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
-CAPTION "Dialog"
-FONT 8, "MS Shell Dlg", 400, 0, 0x1
-BEGIN
-    DEFPUSHBUTTON   "OK",IDOK,129,7,50,14
-    PUSHBUTTON      "Cancel",IDCANCEL,129,24,50,14
+    CONTROL         "",IDC_PLUGINTABCTRL,"SysTabControl32",0x0,0,0,444,328
+    LTEXT           "Plugin list hosting generously provided by",IDC_PLUGINLISTHOSTING,102,333,133,8
+    LTEXT           "Nexinto Business Cloud",IDC_NEXINTOBUSINESSCLOUD,102,343,75,8
+    CONTROL         "<A HREF=""https://www.nexinto.com/en/business-cloud/?utm_source=url&utm_medium=embed&utm_campaign=npp"">https://www.nexinto.com/nbc</A>",IDC_NBCLINK,
+                    "SysLink",WS_TABSTOP,102,352,104,8
+    CONTROL         "<A HREF=""http://bruderste.in/npp/pm/sponsor/"">Why is this here?</A>",IDC_WHYISTHISHERE,
+                    "SysLink",WS_TABSTOP,101,362,59,8
+    CONTROL         121,IDC_NBCLOGO,"Static",SS_BITMAP | SS_NOTIFY,6,333,90,36
+    PUSHBUTTON      "Settings",IDC_SETTINGS,314,346,50,14
+    DEFPUSHBUTTON   "Close",IDOK,378,346,50,14
 END
 
 
@@ -174,20 +194,12 @@ END
 //
 
 #ifdef APSTUDIO_INVOKED
-GUIDELINES DESIGNINFO 
+GUIDELINES DESIGNINFO
 BEGIN
     IDD_PLUGINMANAGER_DLG, DIALOG
     BEGIN
-        RIGHTMARGIN, 345
-        BOTTOMMARGIN, 275
-    END
-
-    IDD_ABOUT_DLG, DIALOG
-    BEGIN
-        LEFTMARGIN, 7
-        RIGHTMARGIN, 179
-        TOPMARGIN, 7
-        BOTTOMMARGIN, 88
+        RIGHTMARGIN, 433
+        BOTTOMMARGIN, 269
     END
 END
 #endif    // APSTUDIO_INVOKED

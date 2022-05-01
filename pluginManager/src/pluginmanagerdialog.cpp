@@ -1,17 +1,25 @@
+/*
+This file is part of Plugin Manager Plugin for Notepad++
 
-#include <windows.h>
-#include <commctrl.h>
-#include <process.h>
+Copyright (C)2009-2010 Dave Brotherstone <davegb@pobox.com>
 
-#pragma warning (push)
-#pragma warning (disable : 4512) // assignment operator could not be generated
-#include <boost/bind.hpp>
-#pragma warning (pop)
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
 
-#include <boost/function.hpp>
-#include <boost/shared_ptr.hpp>
-#include <list>
-#include <set>
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+*/
+#include "precompiled_headers.h"
+
+
 
 
 #include "resource.h"
@@ -25,32 +33,51 @@
 #include "ProgressDialog.h"
 #include "Utility.h"
 #include "SettingsDialog.h"
-#include "md5.h"
+#include "libinstall/md5.h"
 #include "WcharMbcsConverter.h"
 
 using namespace std;
-using namespace boost;
+using namespace std::placeholders;
 
+
+PluginManagerDialog::PluginManagerDialog()
+	: _HSource(nullptr), 
+	  _hCloseButton(nullptr),
+	  _hSettingsButton(nullptr),
+	  _hNbcLogo(nullptr),
+	  _pluginList(nullptr),
+	  _leftMargin(0),
+	  _rightMargin(0),
+	  _topMargin(0), 
+	  _bottomMargin(0),
+	  _tabBottomOffset(0),
+	  _closeButtonBottomOffset(0), 
+	  _closeButtonRightOffset(0),
+	  _closeButtonWidth(0), 
+	  _closeButtonHeight(0),
+	  _isDownloading(false),
+	  _downloadThread(0)
+{
+}
 
 void PluginManagerDialog::doDialog()
 {
 	if (!isCreated())
 	{
         create(IDD_PLUGINMANAGER_DLG);
-		//_pluginListView.init(GetDlgItem(_hSelf, IDC_PLUGINLIST));
-//		setupTabControl();
-		
+
 	}
+
 	goToCenter();
 }
 
-BOOL CALLBACK PluginManagerDialog::availableTabDlgProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
+INT_PTR CALLBACK PluginManagerDialog::availableTabDlgProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
 {
 	switch (Message) 
 	{
         case WM_INITDIALOG :
 		{
-			::SetWindowLong(hWnd, GWL_USERDATA, lParam);
+			::SetWindowLongPtr(hWnd, GWLP_USERDATA, lParam);
 			PluginManagerDialog *dlg = reinterpret_cast<PluginManagerDialog*>(lParam);
 
 			dlg->_tabs[TAB_AVAILABLE].hListView = ::GetDlgItem(hWnd, IDC_LISTAVAILABLE);	
@@ -91,16 +118,17 @@ BOOL CALLBACK PluginManagerDialog::availableTabDlgProc(HWND hWnd, UINT Message, 
 
 		case WM_SIZE:
 		{
-			PluginManagerDialog *dlg = reinterpret_cast<PluginManagerDialog*>(::GetWindowLongPtr(hWnd, GWL_USERDATA));
+			PluginManagerDialog *dlg = reinterpret_cast<PluginManagerDialog*>(::GetWindowLongPtr(hWnd, GWLP_USERDATA));
 			dlg->sizeTab(dlg->_tabs[TAB_AVAILABLE], LOWORD(lParam), HIWORD(lParam));
 			return TRUE;
 		}
 
 		case WM_NOTIFY:
 		{
-			PluginManagerDialog *dlg = reinterpret_cast<PluginManagerDialog*>(::GetWindowLongPtr(hWnd, GWL_USERDATA));
+			PluginManagerDialog *dlg = reinterpret_cast<PluginManagerDialog*>(::GetWindowLongPtr(hWnd, GWLP_USERDATA));
+            //HWND hwndFrom = ((LPNMHDR)lParam)->hwndFrom;
 
-			if (((LPNMHDR)lParam)->hwndFrom == dlg->_tabs[TAB_AVAILABLE].hListView)
+			if (dlg && ((LPNMHDR)lParam)->hwndFrom == dlg->_tabs[TAB_AVAILABLE].hListView)
 				return dlg->_availableListView.notify(wParam, lParam);
 			else
 				return FALSE;
@@ -108,21 +136,24 @@ BOOL CALLBACK PluginManagerDialog::availableTabDlgProc(HWND hWnd, UINT Message, 
 
 		case WM_COMMAND:
 		{
-			PluginManagerDialog *dlg = reinterpret_cast<PluginManagerDialog*>(::GetWindowLongPtr(hWnd, GWL_USERDATA));
+			PluginManagerDialog *dlg = reinterpret_cast<PluginManagerDialog*>(::GetWindowLongPtr(hWnd, GWLP_USERDATA));
 
 			switch(LOWORD(wParam))
 			{
 				case IDC_BUTTONINSTALL:
 				{
-					//
-
+                    CancelToken cancelToken;
 					ProgressDialog progress(dlg->_hInst, 
-						boost::bind(&PluginManagerDialog::startInstall, dlg, _1, &dlg->_availableListView, FALSE));
+                        cancelToken,
+						std::bind(&PluginList::startInstall, dlg->_pluginList, dlg->_hSelf, _1, &dlg->_availableListView, FALSE, cancelToken));
 					progress.doModal(dlg->_hSelf);
 					
-					//	dlg->installPlugins(dlg->_availableListView);
 					break;
 				}
+
+				case IDC_NBCLOGO:
+                    ShellExecute(NULL, L"open", L"https://www.nexinto.com/en/business-cloud/?utm_source=logo&utm_medium=embed&utm_campaign=npp", NULL, NULL, SW_SHOW);
+                    break;
 			}
 			break;
 		}
@@ -131,216 +162,22 @@ BOOL CALLBACK PluginManagerDialog::availableTabDlgProc(HWND hWnd, UINT Message, 
 	return FALSE;
 }
 
-struct InstallParam
-{
-	PluginManagerDialog* pluginManagerDialog;
-	PluginListView*      pluginListView;
-	ProgressDialog*		 progressDialog;
-	BOOL                 isUpdate;
-};
-
-void PluginManagerDialog::startInstall(ProgressDialog* progressDialog, PluginListView *pluginListView, BOOL isUpdate)
-{
-	InstallParam *ip = new InstallParam;
-	ip->pluginListView = pluginListView;
-	ip->progressDialog = progressDialog;
-	ip->pluginManagerDialog = this;
-	ip->isUpdate = isUpdate;
-
-	::CreateThread(0, 0, (LPTHREAD_START_ROUTINE)PluginManagerDialog::installThreadProc, (LPVOID)ip, 0, 0);
-}
-
-
-UINT PluginManagerDialog::installThreadProc(LPVOID param)
-{
-	InstallParam *ip = reinterpret_cast<InstallParam*>(param);
-	
-	ip->pluginManagerDialog->installPlugins(ip->progressDialog, ip->pluginListView, ip->isUpdate);
-
-	// clean up the parameter
-	delete ip;
-
-	return 0;
-}
 
 
 
 
 
-void PluginManagerDialog::installPlugins(ProgressDialog* progressDialog, PluginListView* pluginListView, BOOL isUpgrade)
-{
-	
-	tstring configDir = _pluginList.getVariableHandler()->getConfigDir();
-	
-	tstring basePath(configDir);
-
-	basePath.append(_T("\\plugin_install_temp"));
-
-	// Create the temp directory if it doesn't exist already
-	::CreateDirectory(basePath.c_str(), NULL);
-	basePath.append(_T("\\plugin"));
-	
-
-
-	TiXmlDocument* forGpupDoc = new TiXmlDocument();
-	TiXmlElement* installElement = new TiXmlElement(_T("install"));
-	forGpupDoc->LinkEndChild(installElement);
-	
-	shared_ptr< list<Plugin*> > selectedPlugins = pluginListView->getSelectedPlugins();
-	
-	shared_ptr< list<tstring> > installDueToDepends = _pluginList.calculateDependencies(selectedPlugins);
-		
-	if (!installDueToDepends->empty())
-	{
-		tstring dependsMessage = _T("The following plugin");
-		if (installDueToDepends->size() > 1)
-			dependsMessage.append(_T("s"));
-
-		dependsMessage.append(_T(" need to be installed to support your selection.\r\n\r\n"));
-		for(list<tstring>::iterator msgIter = installDueToDepends->begin(); msgIter != installDueToDepends->end(); msgIter++)
-		{
-			dependsMessage.append(*msgIter);
-			dependsMessage.append(_T("\r\n"));
-		}
-
-		dependsMessage.append(_T("\r\nThey will be installed automatically."));
-
-
-		::MessageBox(_hSelf, dependsMessage.c_str(), _T("Plugin Manager"), MB_OK | MB_ICONINFORMATION);
-
-	}
-
-	
-
-	size_t installSteps = 0;
-	list<Plugin*>::iterator pluginIter = selectedPlugins->begin();
-	while(pluginIter != selectedPlugins->end())
-	{
-		installSteps += (*pluginIter)->getInstallStepCount();
-		++pluginIter;
-	}
-
-	progressDialog->setStepCount(installSteps);
-
-	pluginIter = selectedPlugins->begin();
-
-
-	tstring pluginTemp;
-	int pluginCount = 1;
-	
-	BOOL needRestart = FALSE;
-
-	TCHAR pluginCountChar[10];
-
-	while(pluginIter != selectedPlugins->end())
-	{
-		BOOL directoryCreated = FALSE;
-		do 
-		{
-			pluginTemp = basePath;
-			_itot_s(pluginCount, pluginCountChar, 10, 10);
-			pluginTemp.append(pluginCountChar);
-			directoryCreated = ::CreateDirectory(pluginTemp.c_str(), NULL);
-			++pluginCount;
-		} while(!directoryCreated);
-
-		pluginTemp.append(_T("\\"));
-		
-
-
-		if (isUpgrade)
-		{
-			/* Remove the existing file if is an upgrade
-			 * This will be done in gpup, but the copy will come afterwards, also in gpup
-			 * So, if the filename is the same as the existing plugin, gpup will delete the old
-			 * file, then copy in the new.
-			 * If the filename is different, the new one will be copied in now, then
-			 * the old file will be deleted in gpup.  This is why it is important that
-			 * replace="false" (default) on the actual plugin file copy step
-			 */
-
-			TiXmlElement* removeElement = new TiXmlElement(_T("delete"));
-			removeElement->SetAttribute(_T("file"), (*pluginIter)->getFilename().c_str());
-			installElement->LinkEndChild(removeElement);
-		}
-
-		InstallStatus status = (*pluginIter)->install(pluginTemp, installElement, 
-			boost::bind(&ProgressDialog::setCurrentStatus, progressDialog, _1),
-			boost::bind(&ProgressDialog::setStepProgress, progressDialog, _1),
-			boost::bind(&ProgressDialog::stepComplete, progressDialog));
-
-		switch(status)
-		{
-			case INSTALL_SUCCESS:
-				Utility::removeDirectory(pluginTemp.c_str());
-				break;
-
-			case INSTALL_NEEDRESTART:
-				needRestart = TRUE;
-				break;
-
-			case INSTALL_FAIL:
-			{
-				tstring message (_T("Installation of "));
-				message.append((*pluginIter)->getName());
-				message.append(_T(" failed."));
-
-				::MessageBox(_hSelf, message.c_str(), _T("Installation Error"), MB_OK | MB_ICONERROR);
-				Utility::removeDirectory(pluginTemp.c_str());
-				break;
-			}
-
-		}
-
-		++pluginIter;
-	}
-	
-	
-	progressDialog->close(); 
-
-
-	if (needRestart)
-	{
-		tstring gpupFile(configDir);
-		gpupFile.append(_T("\\PluginManagerGpup.xml"));
-
-		forGpupDoc->SaveFile(gpupFile.c_str());
-		delete forGpupDoc;
-
-		int restartNow = ::MessageBox(_hSelf, _T("Some installation steps still need to be completed.  Notepad++ needs to be restarted in order to complete these steps.  If you restart later, the steps will not be completed.  Would you like to restart now?"), _T("Plugin Manager"), MB_YESNO | MB_ICONINFORMATION);
-		if (restartNow == IDYES)
-		{
-			
-			tstring gpupArguments(_T("-a \""));
-			gpupArguments.append(gpupFile);
-			gpupArguments.append(_T("\""));
-
-			Utility::startGpup(_pluginList.getVariableHandler()->getNppDir().c_str(), gpupArguments.c_str());
-		}
-	}
-	else
-	{
-		delete forGpupDoc;
-
-		int restartNow = ::MessageBox(_hSelf, _T("Notepad++ needs to be restarted for changes to take effect.  Would you like to do this now?"), _T("Plugin Manager"), MB_YESNO | MB_ICONINFORMATION);
-		if (restartNow == IDYES)
-		{
-			Utility::startGpup(_pluginList.getVariableHandler()->getNppDir().c_str(), _T(""));
-		}
-	}
-	
-	
-}
 
 
 
-BOOL CALLBACK PluginManagerDialog::updatesTabDlgProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
+
+INT_PTR CALLBACK PluginManagerDialog::updatesTabDlgProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
 {
 	switch (Message) 
 	{
         case WM_INITDIALOG :
 		{
-			::SetWindowLong(hWnd, GWL_USERDATA, (LONG)lParam);
+			::SetWindowLongPtr(hWnd, GWLP_USERDATA, lParam);
 			PluginManagerDialog *dlg = reinterpret_cast<PluginManagerDialog*>(lParam);
 
 			dlg->_tabs[TAB_UPDATES].hListView = ::GetDlgItem(hWnd, IDC_LISTUPDATES);	
@@ -376,21 +213,21 @@ BOOL CALLBACK PluginManagerDialog::updatesTabDlgProc(HWND hWnd, UINT Message, WP
 			PluginListView::VERSIONCOLUMN columns[2];
 			columns[0] = PluginListView::VERSION_INSTALLED;
 			columns[1] = PluginListView::VERSION_AVAILABLE;
-			dlg->_updatesListView.init(dlg->_tabs[TAB_UPDATES].hListView, dlg->_tabs[TAB_UPDATES].hDescription, 2, columns);
+			dlg->_updatesListView.init(dlg->_tabs[TAB_UPDATES].hListView, dlg->_tabs[TAB_UPDATES].hDescription, 2, columns, true);
 			dlg->_updatesListView.setMessage(_T("Downloading plugin list..."));
 			return TRUE;
 		}
 
 		case WM_SIZE:
 		{
-			PluginManagerDialog *dlg = reinterpret_cast<PluginManagerDialog*>(::GetWindowLong(hWnd, GWL_USERDATA));
+			PluginManagerDialog *dlg = reinterpret_cast<PluginManagerDialog*>(::GetWindowLongPtr(hWnd, GWLP_USERDATA));
 			dlg->sizeTab(dlg->_tabs[TAB_UPDATES], LOWORD(lParam), HIWORD(lParam));
 			return TRUE;
 		}
 
 		case WM_NOTIFY:
 		{
-			PluginManagerDialog *dlg = reinterpret_cast<PluginManagerDialog*>(::GetWindowLong(hWnd, GWL_USERDATA));
+			PluginManagerDialog *dlg = reinterpret_cast<PluginManagerDialog*>(::GetWindowLongPtr(hWnd, GWLP_USERDATA));
 
 			if (((LPNMHDR)lParam)->hwndFrom == dlg->_tabs[TAB_UPDATES].hListView)
 			{
@@ -403,14 +240,16 @@ BOOL CALLBACK PluginManagerDialog::updatesTabDlgProc(HWND hWnd, UINT Message, WP
 		
 		case WM_COMMAND:
 		{
-			PluginManagerDialog *dlg = reinterpret_cast<PluginManagerDialog*>(::GetWindowLong(hWnd, GWL_USERDATA));
+			PluginManagerDialog *dlg = reinterpret_cast<PluginManagerDialog*>(::GetWindowLongPtr(hWnd, GWLP_USERDATA));
 
 			switch(LOWORD(wParam))
 			{
 				case IDC_BUTTONUPDATE:
 				{
+                    CancelToken cancelToken;
 					ProgressDialog progress(dlg->_hInst, 
-						boost::bind(&PluginManagerDialog::startInstall, dlg, _1, &dlg->_updatesListView, TRUE));
+                        cancelToken,
+						std::bind(&PluginList::startInstall, dlg->_pluginList, dlg->_hSelf, _1, &dlg->_updatesListView, TRUE, cancelToken));
 					progress.doModal(dlg->_hSelf);
 					
 					
@@ -424,21 +263,21 @@ BOOL CALLBACK PluginManagerDialog::updatesTabDlgProc(HWND hWnd, UINT Message, WP
 }
 
 
-BOOL CALLBACK PluginManagerDialog::installedTabDlgProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
+INT_PTR CALLBACK PluginManagerDialog::installedTabDlgProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
 {
 	switch (Message) 
 	{
         case WM_INITDIALOG :
 		{
-			::SetWindowLongPtr(hWnd, GWL_USERDATA, (LONG_PTR)lParam);
+			::SetWindowLongPtr(hWnd, GWLP_USERDATA, lParam);
 			PluginManagerDialog *dlg = reinterpret_cast<PluginManagerDialog*>(lParam);
 
 			dlg->_tabs[TAB_INSTALLED].hListView = ::GetDlgItem(hWnd, IDC_LISTINSTALLED);	
 			dlg->_tabs[TAB_INSTALLED].hDescription = ::GetDlgItem(hWnd, IDC_EDITINSTALLED);
-			dlg->_tabs[TAB_INSTALLED].nButtons = 1;
-			dlg->_tabs[TAB_INSTALLED].pButtons = new BUTTON[1];
+			dlg->_tabs[TAB_INSTALLED].nButtons = 2;
+			dlg->_tabs[TAB_INSTALLED].pButtons = new BUTTON[2];
 			dlg->_tabs[TAB_INSTALLED].pButtons[0].hWnd = ::GetDlgItem(hWnd, IDC_BUTTONREMOVE);
-			
+			dlg->_tabs[TAB_INSTALLED].pButtons[1].hWnd = ::GetDlgItem(hWnd, IDC_REINSTALL);
 			WINDOWINFO wiTab;
 			::GetWindowInfo(hWnd, &wiTab);
 
@@ -449,7 +288,15 @@ BOOL CALLBACK PluginManagerDialog::installedTabDlgProc(HWND hWnd, UINT Message, 
 			dlg->_tabs[TAB_INSTALLED].pButtons[0].rightOffset = wiTab.rcClient.right - wiObject.rcClient.left;
 			dlg->_tabs[TAB_INSTALLED].pButtons[0].width = wiObject.rcClient.right - wiObject.rcClient.left;
 			dlg->_tabs[TAB_INSTALLED].pButtons[0].height = wiObject.rcClient.bottom - wiObject.rcClient.top;
+
+
+			::GetWindowInfo(dlg->_tabs[TAB_INSTALLED].pButtons[1].hWnd, &wiObject);
 			
+			dlg->_tabs[TAB_INSTALLED].pButtons[1].rightOffset = wiTab.rcClient.right - wiObject.rcClient.left;
+			dlg->_tabs[TAB_INSTALLED].pButtons[1].width = wiObject.rcClient.right - wiObject.rcClient.left;
+			dlg->_tabs[TAB_INSTALLED].pButtons[1].height = wiObject.rcClient.bottom - wiObject.rcClient.top;
+			
+
 			::GetWindowInfo(dlg->_tabs[TAB_INSTALLED].hListView, &wiObject);
 			dlg->_tabs[TAB_INSTALLED].listViewBottomOffset = wiTab.rcClient.bottom - wiObject.rcClient.bottom;
 
@@ -472,14 +319,14 @@ BOOL CALLBACK PluginManagerDialog::installedTabDlgProc(HWND hWnd, UINT Message, 
 
 		case WM_SIZE:
 		{
-			PluginManagerDialog *dlg = reinterpret_cast<PluginManagerDialog*>(::GetWindowLong(hWnd, GWL_USERDATA));
+			PluginManagerDialog *dlg = reinterpret_cast<PluginManagerDialog*>(::GetWindowLongPtr(hWnd, GWLP_USERDATA));
 			dlg->sizeTab(dlg->_tabs[TAB_INSTALLED], LOWORD(lParam), HIWORD(lParam));
 			return TRUE;
 		}
 
 		case WM_NOTIFY:
 		{
-			PluginManagerDialog *dlg = reinterpret_cast<PluginManagerDialog*>(::GetWindowLong(hWnd, GWL_USERDATA));
+			PluginManagerDialog *dlg = reinterpret_cast<PluginManagerDialog*>(::GetWindowLongPtr(hWnd, GWLP_USERDATA));
 
 			if (((LPNMHDR)lParam)->hwndFrom == dlg->_tabs[TAB_INSTALLED].hListView)
 			{
@@ -487,6 +334,36 @@ BOOL CALLBACK PluginManagerDialog::installedTabDlgProc(HWND hWnd, UINT Message, 
 				return TRUE;
 			}
 
+			break;
+		}
+
+
+		case WM_COMMAND:
+		{
+			PluginManagerDialog *dlg = reinterpret_cast<PluginManagerDialog*>(::GetWindowLongPtr(hWnd, GWLP_USERDATA));
+
+			switch(LOWORD(wParam))
+			{
+				case IDC_BUTTONREMOVE:
+				{
+                    CancelToken cancelToken;
+					ProgressDialog progress(dlg->_hInst, 
+                        cancelToken,
+						std::bind(&PluginList::startRemove, dlg->_pluginList, dlg->_hSelf, _1, &dlg->_installedListView, cancelToken));
+					progress.doModal(dlg->_hSelf);
+					break;
+				}
+
+				case IDC_REINSTALL:
+				{
+                    CancelToken cancelToken;
+					ProgressDialog progress(dlg->_hInst, 
+                        cancelToken,
+						std::bind(&PluginList::startInstall, dlg->_pluginList, dlg->_hSelf, _1, &dlg->_installedListView, TRUE, cancelToken));
+					progress.doModal(dlg->_hSelf);
+					break;
+				}
+			}
 			break;
 		}
 
@@ -499,7 +376,7 @@ BOOL CALLBACK PluginManagerDialog::installedTabDlgProc(HWND hWnd, UINT Message, 
 }
 
  
-BOOL CALLBACK PluginManagerDialog::tabWndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
+INT_PTR CALLBACK PluginManagerDialog::tabWndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
 {
 	switch (Message) 
 	{
@@ -512,7 +389,7 @@ BOOL CALLBACK PluginManagerDialog::tabWndProc(HWND hWnd, UINT Message, WPARAM wP
 		case WM_SIZE:
 		{
 			
-			DLGHDR *dlgHdr = reinterpret_cast<DLGHDR*>(::GetWindowLongPtr(hWnd, GWL_USERDATA));
+			DLGHDR *dlgHdr = reinterpret_cast<DLGHDR*>(::GetWindowLongPtr(hWnd, GWLP_USERDATA));
 
 
 			dlgHdr->rcDisplay.left = 0;
@@ -532,7 +409,7 @@ BOOL CALLBACK PluginManagerDialog::tabWndProc(HWND hWnd, UINT Message, WPARAM wP
 		}
 
 		default:
-			DLGHDR *dlgHdr = reinterpret_cast<DLGHDR*>(::GetWindowLong(hWnd, GWL_USERDATA));
+			DLGHDR *dlgHdr = reinterpret_cast<DLGHDR*>(::GetWindowLongPtr(hWnd, GWLP_USERDATA));
 			if (dlgHdr->defWndProc)
 				return ::CallWindowProc(dlgHdr->defWndProc, hWnd, Message, wParam, lParam);
 			else
@@ -542,10 +419,24 @@ BOOL CALLBACK PluginManagerDialog::tabWndProc(HWND hWnd, UINT Message, WPARAM wP
 
 }
 
-BOOL CALLBACK PluginManagerDialog::run_dlgProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
-{
-	DownloadManager downloadManager;
+void PluginManagerDialog::addBottomComponent(HWND hWnd, WINDOWINFO& wiDlg, UINT id) {
 
+            POSITIONINFO *positionInfo;
+            // Logo
+            positionInfo = new POSITIONINFO();
+            positionInfo->handle = ::GetDlgItem(hWnd, id);
+			WINDOWINFO wiCtl;
+			wiDlg.cbSize = sizeof(WINDOWINFO);
+			::GetWindowInfo(positionInfo->handle, &wiCtl);
+            positionInfo->height = wiCtl.rcClient.bottom - wiCtl.rcClient.top;
+            positionInfo->width = wiCtl.rcClient.right - wiCtl.rcClient.left;
+            positionInfo->bottomOffset = wiDlg.rcClient.bottom - wiCtl.rcClient.top;
+            positionInfo->leftOffset = wiCtl.rcClient.left - wiDlg.rcClient.left;
+            _bottomComponents.push_back(std::shared_ptr<POSITIONINFO>(positionInfo));
+}
+
+INT_PTR CALLBACK PluginManagerDialog::run_dlgProc(UINT Message, WPARAM wParam, LPARAM lParam)
+{
 	switch (Message) 
 	{
         case WM_INITDIALOG :
@@ -557,21 +448,28 @@ BOOL CALLBACK PluginManagerDialog::run_dlgProc(HWND hWnd, UINT Message, WPARAM w
 			
 			WINDOWINFO wiDlg;
 			wiDlg.cbSize = sizeof(WINDOWINFO);
-			::GetWindowInfo(hWnd, &wiDlg);
+			::GetWindowInfo(_hSelf, &wiDlg);
 			_leftMargin = wiCtl.rcClient.left - wiDlg.rcClient.left;
 			_rightMargin = wiDlg.rcClient.right - wiCtl.rcClient.right;
 			_topMargin = wiCtl.rcClient.top - wiDlg.rcClient.top;
 			_tabBottomOffset = wiDlg.rcClient.bottom - wiCtl.rcClient.bottom;
-			_hCloseButton = GetDlgItem(hWnd, IDOK);
-			_hSettingsButton = GetDlgItem(hWnd, IDC_SETTINGS);
+			_hCloseButton = GetDlgItem(_hSelf, IDOK);
+			_hSettingsButton = GetDlgItem(_hSelf, IDC_SETTINGS);
 			::GetWindowInfo(_hCloseButton, &wiCtl);
 			_closeButtonRightOffset = wiDlg.rcClient.right - wiCtl.rcClient.left;
 			_closeButtonBottomOffset = wiDlg.rcClient.bottom - wiCtl.rcClient.top;
 			_closeButtonWidth = wiCtl.rcClient.right - wiCtl.rcClient.left;	
 			_closeButtonHeight = wiCtl.rcClient.bottom - wiCtl.rcClient.top;
 
-			_beginthread(downloadAndPopulate, 0, this);
-			
+
+            // Hosting provided by
+            addBottomComponent(_hSelf, wiDlg, IDC_PLUGINLISTHOSTING);
+            addBottomComponent(_hSelf, wiDlg, IDC_NBCLINK);
+            addBottomComponent(_hSelf, wiDlg, IDC_NEXINTOBUSINESSCLOUD);
+            addBottomComponent(_hSelf, wiDlg, IDC_NBCLOGO);
+            addBottomComponent(_hSelf, wiDlg, IDC_WHYISTHISHERE);
+
+			_downloadThread = _beginthread(downloadAndPopulate, 0, this);
 
 			return TRUE;
 		}
@@ -582,10 +480,29 @@ BOOL CALLBACK PluginManagerDialog::run_dlgProc(HWND hWnd, UINT Message, WPARAM w
 				case IDC_SETTINGS:
 				{
 					SettingsDialog settingsDlg;
+					BOOL oldShowUnstable = g_options.showUnstable;
+					BOOL oldUseDevPluginList = g_options.useDevPluginList;
 
-					settingsDlg.doModal(_hSelf);
-					break;
+					settingsDlg.doModal(&_nppData, _hSelf);
+                    if (g_options.useDevPluginList != oldUseDevPluginList) {
+                        _beginthread(refreshDownload, 0, this);
+					} else if (g_options.showUnstable != oldShowUnstable) {
+						TCHAR pluginConfig[MAX_PATH];
+						::SendMessage(_nppData._nppHandle, NPPM_GETPLUGINSCONFIGDIR, MAX_PATH - 26, reinterpret_cast<LPARAM>(pluginConfig));
+	
+
+						tstring pluginsListFilename(pluginConfig);
+						pluginsListFilename.append(_T("\\PluginManagerPlugins.xml"));
+						_pluginList->reparseFile(pluginsListFilename);
+						populateLists(this);
+					}
+					return TRUE;
 				}
+
+				case IDC_NBCLOGO:
+                    ShellExecute(NULL, L"open", L"https://www.nexinto.com/nbc/?utm_source=logo&utm_medium=embed&utm_campaign=npp", NULL, NULL, SW_SHOW);
+                    break;
+
 				case IDOK :
 				case IDCANCEL :
 					display(FALSE);
@@ -594,21 +511,36 @@ BOOL CALLBACK PluginManagerDialog::run_dlgProc(HWND hWnd, UINT Message, WPARAM w
 				default :
 					break;
 			}
+            break;
 		}
 
 		case WM_NOTIFY:
 		{
 			LPNMHDR lpnmhdr = (LPNMHDR) lParam;
-			if (lpnmhdr->hwndFrom == GetDlgItem(_hSelf, IDC_PLUGINTABCTRL))
+			switch(lpnmhdr->code)
 			{
-				switch(lpnmhdr->code)
+			case TCN_SELCHANGE:
+				if (lpnmhdr->hwndFrom == GetDlgItem(_hSelf, IDC_PLUGINTABCTRL))
 				{
-					case TCN_SELCHANGE:
-						OnSelChanged(lpnmhdr->hwndFrom);
-						break;
+					OnSelChanged(lpnmhdr->hwndFrom);
 				}
+				break;
+
+			case NM_CLICK:
+			case NM_RETURN:
+				HWND hwndFrom = ((LPNMHDR)lParam)->hwndFrom;
+				if (hwndFrom == GetDlgItem(_hSelf, IDC_NBCLINK)
+					|| hwndFrom == GetDlgItem(_hSelf, IDC_WHYISTHISHERE))
+				{
+					PNMLINK pNMLink = (PNMLINK)lParam;
+					LITEM   item    = pNMLink->item;
+					ShellExecute(NULL, L"open", item.szUrl, NULL, NULL, SW_SHOW);
+					return FALSE;
+				}
+
+				break;
 			}
-			break;
+            break;
 		}
 
 		case WM_SIZE:
@@ -622,7 +554,7 @@ BOOL CALLBACK PluginManagerDialog::run_dlgProc(HWND hWnd, UINT Message, WPARAM w
 
 void PluginManagerDialog::OnSelChanged(HWND hwndDlg) 
 { 
-    DLGHDR *pHdr = (DLGHDR *) GetWindowLongPtr(hwndDlg, GWL_USERDATA); 
+    DLGHDR *pHdr = reinterpret_cast<DLGHDR*>(::GetWindowLongPtr(hwndDlg, GWLP_USERDATA));
     int iSel = TabCtrl_GetCurSel(pHdr->hwndTab); 
  
     // Destroy the current child dialog box, if any. 
@@ -692,10 +624,10 @@ void PluginManagerDialog::initTabControl()
 	// CopyRect(&_tabHeader.rcDisplay, &wi.rcClient);
 
 	// Set the userdata
-	::SetWindowLong(hTabCtrl, GWL_USERDATA, reinterpret_cast<LONG>(&_tabHeader));
+	::SetWindowLongPtr(hTabCtrl, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(&_tabHeader));
 	
-	_tabHeader.defWndProc = reinterpret_cast<WNDPROC>(::GetWindowLong(hTabCtrl, GWL_WNDPROC));
-	::SetWindowLong(hTabCtrl, GWL_WNDPROC, reinterpret_cast<LONG>(tabWndProc));
+	_tabHeader.defWndProc = reinterpret_cast<WNDPROC>(::GetWindowLongPtr(hTabCtrl, GWLP_WNDPROC));
+	::SetWindowLongPtr(hTabCtrl, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(tabWndProc));
 	// Fake a tab change, to show the first tab
 	OnSelChanged(hTabCtrl);
 }
@@ -711,14 +643,20 @@ DLGTEMPLATE* PluginManagerDialog::DoLockDlgRes(LPCTSTR lpszResName)
 void PluginManagerDialog::sizeWindow(int width, int height)
 {
 	// Size the tab control
-	::MoveWindow(_tabHeader.hwndTab, _leftMargin, _topMargin, width - _leftMargin - _rightMargin, height - _tabBottomOffset, TRUE);
-	
-	// Move the close button
-	::MoveWindow(_hCloseButton, width - _closeButtonRightOffset, height - _closeButtonBottomOffset, _closeButtonWidth, _closeButtonHeight, TRUE);
+	::MoveWindow(_tabHeader.hwndTab, _leftMargin, _topMargin, width - _leftMargin - _rightMargin, height - _tabBottomOffset, FALSE);
+    
+    // Move the sponsor message 
+    for(std::list<std::shared_ptr<POSITIONINFO>>::iterator it = _bottomComponents.begin(); it != _bottomComponents.end(); it++) {
+		::MoveWindow((*it)->handle, (*it)->leftOffset, height - (*it)->bottomOffset, (*it)->width, (*it)->height, FALSE);
+	}
 
-	// Move the settings button
-	::MoveWindow(_hSettingsButton, _leftMargin, height - _closeButtonBottomOffset, _closeButtonWidth, _closeButtonHeight, TRUE);
+	// Move the settings button, _closeButtonHeight is also the width between settings and close buttons
+	::MoveWindow(_hSettingsButton, width - _closeButtonRightOffset - _closeButtonWidth - _closeButtonHeight, height - _closeButtonBottomOffset, _closeButtonWidth, _closeButtonHeight, FALSE);	
 
+	// Move the close button, move last to have let it draw last and have it at the top, also on small dialog sizes
+	::MoveWindow(_hCloseButton, width - _closeButtonRightOffset, height - _closeButtonBottomOffset, _closeButtonWidth, _closeButtonHeight, FALSE);
+
+	::InvalidateRect(_hSelf, NULL, TRUE);
 }
 
 
@@ -747,72 +685,93 @@ void PluginManagerDialog::sizeTab(TABPAGE tab, int width, int height)
 }
 
 
-
-
-
 void PluginManagerDialog::downloadAndPopulate(PVOID pvoid)
 {
 	PluginManagerDialog *dlg = reinterpret_cast<PluginManagerDialog *>(pvoid);
+    dlg->_isDownloading = true;
+	if (!dlg->_pluginList)
+	{
+		dlg->_pluginList = new PluginList();
+		dlg->_pluginList->init(&dlg->_nppData);
+		dlg->_pluginList->downloadList();
+	}
+	else
+	{
+		if (!dlg->_pluginList->listsAvailable())
+		{
+			dlg->_availableListView.setMessage(_T("Still downloading plugin list..."));
+			dlg->_updatesListView.setMessage(_T("Still downloading plugin list..."));
+			dlg->_installedListView.setMessage(_T("Still downloading plugin list..."));
+			dlg->_pluginList->waitForListsAvailable();
+		}
+	}
 
-	/*LVITEM lvi;
-	lvi.mask = LVIF_TEXT;
-	lvi.cchTextMax = 30;
-	lvi.pszText = _T("Please wait while plugin list is downloaded...");
-	lvi.iItem = 0;
-	lvi.iSubItem = 0;
-    ListView_InsertItem(dlg->_tabs[TAB_AVAILABLE].hListView, &lvi);
-	ListView_InsertItem(dlg->_tabs[TAB_UPDATES].hListView, &lvi);
-	ListView_InsertItem(dlg->_tabs[TAB_INSTALLED].hListView, &lvi);
-*/
-	// Work out the path of the Plugins.xml destinatino (in config dir)
-	TCHAR pluginConfig[MAX_PATH];
-	::SendMessage(dlg->_nppData._nppHandle, NPPM_GETPLUGINSCONFIGDIR, MAX_PATH - 26, reinterpret_cast<LPARAM>(pluginConfig));
-	
-	tstring pluginsListFilename(pluginConfig);
-	pluginsListFilename.append(_T("\\PluginManagerPlugins.xml"));
-		
-	
-
-	// Download the plugins.xml from the repository
-	DownloadManager downloadManager;
-	tstring contentType;
-	TCHAR hashBuffer[(MD5LEN * 2) + 1];
-	MD5::hash(pluginsListFilename.c_str(), hashBuffer, (MD5LEN * 2) + 1);
-	string serverMD5;
-	BOOL downloadResult = downloadManager.getUrl(_T("http://localhost:100/plugins.md5.txt"), serverMD5, g_options.proxy.c_str(), g_options.proxyPort);
-	shared_ptr<char> cHashBuffer = WcharMbcsConverter::tchar2char(hashBuffer);
-	if (downloadResult && serverMD5 != cHashBuffer.get())
-		downloadManager.getUrl(_T("http://localhost:100/plugins.xml"), pluginsListFilename, contentType, g_options.proxy.c_str(), g_options.proxyPort);
+	populateLists(dlg);
 	
 
-	dlg->_pluginList.init(&dlg->_nppData);	
-	// Parse it
-	dlg->_pluginList.parsePluginFile(pluginsListFilename.c_str());
-	
-	// Check for what is installed
-	TCHAR nppDirectory[MAX_PATH];
-	::SendMessage(dlg->_nppData._nppHandle, NPPM_GETNPPDIRECTORY, MAX_PATH, reinterpret_cast<LPARAM>(nppDirectory));
-	dlg->_pluginList.checkInstalledPlugins(nppDirectory);
+    dlg->_isDownloading = FALSE;
+    dlg->_downloadThread = NULL;
+	_endthread();
+}
 
+void PluginManagerDialog::refreshDownload(PVOID pvoid) {
+
+	PluginManagerDialog *dlg = reinterpret_cast<PluginManagerDialog *>(pvoid);
+    
+    if (dlg->_isDownloading) {
+		::WaitForSingleObject(reinterpret_cast<HANDLE>(dlg->_downloadThread), 90000);
+	}
+	delete dlg->_pluginList;
+	dlg->_pluginList = NULL;
+	dlg->_availableListView.setMessage(_T("Refreshing plugin list..."));
+	dlg->_updatesListView.setMessage(_T("Refreshing plugin list..."));
+	dlg->_installedListView.setMessage(_T("Refreshing plugin list..."));
+	dlg->_downloadThread = _beginthread(downloadAndPopulate, 0, dlg);
+	_endthread();
+}
+
+void PluginManagerDialog::refreshLists()
+{
+	populateLists(this);
+}
+
+void PluginManagerDialog::populateLists(PluginManagerDialog* dlg)
+{
 	// Show the lists
-	PluginListContainer availablePlugins = dlg->_pluginList.getAvailablePlugins();
+	PluginListContainer availablePlugins = dlg->_pluginList->getAvailablePlugins();
 	if (availablePlugins.empty())
 		dlg->_availableListView.setMessage(_T("No new plugins available"));
 	else
 		dlg->_availableListView.setList(availablePlugins);
 
-	PluginListContainer installedPlugins = dlg->_pluginList.getInstalledPlugins();
+
+	PluginListContainer installedPlugins = dlg->_pluginList->getInstalledPlugins();
 
 	if (installedPlugins.empty())
 		dlg->_installedListView.setMessage(_T("There are no known installed plugins"));
 	else
 		dlg->_installedListView.setList(installedPlugins);
 	
-	PluginListContainer updatesPlugins = dlg->_pluginList.getUpdateablePlugins();
+
+	PluginListContainer updatesPlugins = dlg->_pluginList->getUpdateablePlugins();
+	
 	if (updatesPlugins.empty())
 		dlg->_updatesListView.setMessage(_T("There are no plugins with updates available"));
 	else
+	{
 		dlg->_updatesListView.setList(updatesPlugins);
+		dlg->_updatesListView.selectAll();
+	}
+}
 
-	_endthread();
+
+void PluginManagerDialog::init(HINSTANCE hInst, NppData nppData)
+{
+	_nppData = nppData;
+	Window::init(hInst, nppData._nppHandle);	
+}
+
+void PluginManagerDialog::setPluginList(PluginList* pluginList)
+{
+	_pluginList = pluginList;
 }

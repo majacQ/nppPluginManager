@@ -1,21 +1,37 @@
-#include <tchar.h>
-#include <string.h>
-#include <string>
-#include <shlwapi.h>
-#include <sstream>
+/*
+This file is part of Plugin Manager Plugin for Notepad++
+
+Copyright (C)2009-2010 Dave Brotherstone <davegb@pobox.com>
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+*/
+
+#include "precompiled_headers.h"
 #include "PluginVersion.h"
 
 using namespace std;
 
 PluginVersion::PluginVersion(void)
+: _major(0), _minor(0), _revision(0), _build(0), _displayString(NULL), _isBad(false)
 {
-	_major = _minor = _revision = _build = 0;
-	_displayString = NULL;
 }
 
 PluginVersion::PluginVersion(const char *version)
+: _major(0), _minor(0), _revision(0), _build(0), _displayString(NULL), _isBad(false)
 {
-	_displayString = NULL;
+	
 	size_t versionSize = strlen(version) + 1;
 	char *str = new char[versionSize];
 	strcpy_s(str, versionSize, version);
@@ -25,8 +41,8 @@ PluginVersion::PluginVersion(const char *version)
 
 
 PluginVersion::PluginVersion(string version)
+: _major(0), _minor(0), _revision(0), _build(0), _displayString(NULL), _isBad(false)
 {
-	_displayString = NULL;
 	char *str = new char[version.size() + 1];
 	strcpy_s(str, version.size() + 1, version.c_str());
 	parseString(str);
@@ -34,19 +50,11 @@ PluginVersion::PluginVersion(string version)
 	
 }
 
-PluginVersion::PluginVersion(tstring version)
-{
-	_displayString = NULL;
-	TCHAR *str = new TCHAR[version.size() + 1];
-	_tcscpy_s(str, version.size() + 1, version.c_str());
-	parseString(str);
-	delete[] str;
-	
-}
+#ifdef _UNICODE
 
 PluginVersion::PluginVersion(const TCHAR *version)
+: _major(0), _minor(0), _revision(0), _build(0), _displayString(NULL), _isBad(false)
 {
-	_displayString = NULL;
 	size_t versionSize = _tcslen(version) + 1;
 	TCHAR *str = new TCHAR[versionSize];
 	_tcscpy_s(str, versionSize, version);
@@ -55,42 +63,52 @@ PluginVersion::PluginVersion(const TCHAR *version)
 	
 }
 
-PluginVersion::PluginVersion(int major, int minor, int revision, int build)
+PluginVersion::PluginVersion(tstring version)
+: _major(0), _minor(0), _revision(0), _build(0), _displayString(NULL), _isBad(false)
 {
-	_major		= major;
-	_minor		= minor;
-	_revision	= revision;
-	_build		= build;
-	_displayString = NULL;
+	TCHAR *str = new TCHAR[version.size() + 1];
+	_tcscpy_s(str, version.size() + 1, version.c_str());
+	parseString(str);
+	delete[] str;
+}
+
+#endif
+
+
+PluginVersion::PluginVersion(int major, int minor, int revision, int build)
+: _major(major), _minor(minor), _revision(revision), _build(build), _displayString(NULL), _isBad(false)
+{
 }
 
 
-bool PluginVersion::operator< (PluginVersion &rhs)
+
+
+bool PluginVersion::operator< (const PluginVersion &rhs)
 {
 	return (compare(*this, rhs) < 0);
 }
 
-bool PluginVersion::operator<= (PluginVersion &rhs)
+bool PluginVersion::operator<= (const PluginVersion &rhs)
 {
 	return (compare(*this, rhs) <= 0);
 }
 
-bool PluginVersion::operator> (PluginVersion &rhs)
+bool PluginVersion::operator> (const PluginVersion &rhs)
 {
 	return (compare(*this, rhs) > 0);
 }
 
-bool PluginVersion::operator>= (PluginVersion &rhs)
+bool PluginVersion::operator>= (const PluginVersion &rhs)
 {
 	return (compare(*this, rhs) >= 0);
 }
 
-bool PluginVersion::operator== (PluginVersion &rhs)
+bool PluginVersion::operator== (const PluginVersion &rhs)
 {
 	return (compare(*this, rhs) == 0);
 }
 
-bool PluginVersion::operator!= (PluginVersion &rhs)
+bool PluginVersion::operator!= (const PluginVersion &rhs)
 {
 	return (compare(*this, rhs) != 0);
 }
@@ -107,6 +125,7 @@ PluginVersion &PluginVersion::operator=(const char *rhs)
 	return *this;
 }
 
+#ifdef _UNICODE
 PluginVersion &PluginVersion::operator=(const TCHAR *rhs)
 {
 	_displayString = NULL;
@@ -118,6 +137,8 @@ PluginVersion &PluginVersion::operator=(const TCHAR *rhs)
 	return *this;
 }
 
+
+
 PluginVersion &PluginVersion::operator=(tstring &rhs)
 {
 	_displayString = NULL;
@@ -127,6 +148,7 @@ PluginVersion &PluginVersion::operator=(tstring &rhs)
 	delete[] str;
 	return *this;
 }
+#endif
 
 PluginVersion &PluginVersion::operator=(string &version)
 {
@@ -188,6 +210,7 @@ void PluginVersion::parseString(const char *version)
 }
 
 
+#ifdef _UNICODE
 
 void PluginVersion::parseString(const TCHAR *version)
 {
@@ -236,9 +259,13 @@ void PluginVersion::parseString(const TCHAR *version)
 	delete[] versionCopy;
 }
 
+#endif
 
-int PluginVersion::compare(PluginVersion &lhs, PluginVersion &rhs)
+
+int PluginVersion::compare(const PluginVersion &lhs, const PluginVersion &rhs) const
 {
+
+
 	int difference = lhs._major - rhs._major;
 	if (difference != 0)
 		return difference;
@@ -264,19 +291,44 @@ TCHAR* PluginVersion::getDisplayString()
 	if (NULL == _displayString)
 	{
 		basic_stringstream<TCHAR> display;
-		
-		display << _major << _T(".") << _minor;
-		if (_revision + _build > 0)
-			display << _T(".") << _revision;
+		if (_major == 0 && _minor == 0 && _revision == 0 && _build == 0)
+			display << _T("Unknown");
+		else 
+		{
+			display << _major << _T(".") << _minor;
+			if (_revision + _build > 0)
+				display << _T(".") << _revision;
 
-		if (_build > 0)
-			display  << _T(".") << _build;
-		
-		size_t length = display.tellp();
+			if (_build > 0)
+				display  << _T(".") << _build;
+
+			if (_isBad)
+				display << _T(" (unstable)");
+		}
+
+		unsigned int length = static_cast<unsigned int>(display.tellp());
 		length++;
 		_displayString = new TCHAR[length];
-		_tcscpy_s(_displayString, length, display.str().c_str());
+		_tcscpy_s(_displayString, static_cast<rsize_t>(length), display.str().c_str());
 	}
 
 	return _displayString;
+}
+
+
+bool PluginVersion::getIsBad()
+{
+	return _isBad;
+}
+
+void PluginVersion::setIsBad(bool isBad)
+{
+	_isBad = isBad;
+}
+
+
+
+bool operator <	(const PluginVersion &lhs, const PluginVersion &rhs)
+{
+	return (lhs.compare(lhs, rhs) < 0);
 }

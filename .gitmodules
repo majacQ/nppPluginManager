@@ -1,0 +1,6 @@
+[submodule "submodule/zlib"]
+	path = submodule/zlib
+	url = https://github.com/madler/zlib.git
+[submodule "submodule/googletest"]
+	path = submodule/googletest
+	url = https://github.com/google/googletest.git

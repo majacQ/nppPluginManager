@@ -1,9 +1,23 @@
+/*
+This file is part of Plugin Manager Plugin for Notepad++
 
-#include <tchar.h>
-#include <string>
-#include <iostream>
-#include <boost/shared_ptr.hpp>
+Copyright (C)2009-2010 Dave Brotherstone <davegb@pobox.com>
 
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+*/
+#include "precompiled_headers.h"
 #include "libinstall/DirectLinkSearch.h"
 
 // Copied over from winnt.h, in order to avoid dependency to windows just for this.
@@ -16,7 +30,6 @@
 #endif
 
 using namespace std;
-using namespace boost;
 
 
 DirectLinkSearch::DirectLinkSearch(const TCHAR *filename)
@@ -28,26 +41,32 @@ DirectLinkSearch::~DirectLinkSearch()
 {
 }
 
-shared_ptr<TCHAR> DirectLinkSearch::search(const TCHAR *filename)
+std::shared_ptr<TCHAR> DirectLinkSearch::search(const TCHAR *filename)
 {
-	size_t patternLength = _tcslen(filename);
-    size_t shiftTable[256];
+	if (!filename || !(*filename))
+	{
+		std::shared_ptr<TCHAR> empty;
+		return empty;
+	}
 
-    for (int position = 0; position < 256; position++)
-    {
-       shiftTable[position] = patternLength;
-    }
+	size_t patternLength = _tcslen(filename);
+	size_t shiftTable[256];
+
+	for (int position = 0; position < 256; position++)
+	{
+		shiftTable[position] = patternLength;
+	}
 
 	for (size_t position = 0; position <= patternLength; position++)
-    {
-       shiftTable[filename[position]] = patternLength - position - 1;
-    }
+	{
+		shiftTable[filename[position]] = patternLength - position - 1;
+	}
 
 	size_t checkOffset = 0;
 	size_t shiftPosition;
 	size_t currentPosition = patternLength - 1;
 	TCHAR currentChar;
-	do 
+	do
 	{
 		currentChar = _file.getCharAt(currentPosition - checkOffset);
 		shiftPosition = shiftTable[currentChar];
@@ -60,14 +79,14 @@ shared_ptr<TCHAR> DirectLinkSearch::search(const TCHAR *filename)
 				size_t realPosition = validateDirectLink(currentPosition-checkOffset + 1);
 				if (realPosition != LINK_NOT_VALID)
 				{
-					shared_ptr<TCHAR> buffer(new TCHAR[currentPosition - realPosition + 2]);
+					std::shared_ptr<TCHAR> buffer(new TCHAR[currentPosition - realPosition + 2]);
 					int bufferPosition = 0;
 					while(realPosition <= currentPosition)
 					{
 						buffer.get()[bufferPosition++] = _file.getCharAt(realPosition++);
 					}
 					buffer.get()[bufferPosition] = '\0';
-					
+
 					return buffer;
 				}
 				else
@@ -85,10 +104,10 @@ shared_ptr<TCHAR> DirectLinkSearch::search(const TCHAR *filename)
 			checkOffset = 0;
 		}
 
-		
+
 	} while (_file.getCharAt(currentPosition) != FILEBUFFER_EOF);
-	
-	shared_ptr<TCHAR> empty;
+
+	std::shared_ptr<TCHAR> empty;
 	return empty;
 
 }
@@ -116,45 +135,45 @@ size_t DirectLinkSearch::validateDirectLink(size_t currentPosition)
 		TCHAR currentChar = _file.getCharAt(currentPosition);
 		if (currentChar != TEXT('.')
 			&& currentChar != TEXT('-')
-			&& !(currentChar >= TEXT('a') && currentChar <= TEXT('z')) 
+			&& !(currentChar >= TEXT('a') && currentChar <= TEXT('z'))
 			&& !(currentChar >= TEXT('A') && currentChar <= TEXT('Z'))
 			&& !(currentChar >= TEXT('0') && currentChar <= TEXT('9')))
 		{
 			lastNonDomain = currentPosition;
-		
+
 
 			if (!findChar(currentChar, validUriChars, charListLen)
 				&& !(currentChar == TEXT('\"') && (searchString[searchPos] == TEXT('\"') || searchString2[searchPos2] == TEXT('\"'))))
 				break;
 		}
-		
-		
+
+
 		if (searchString[searchPos] == currentChar)
 		{
-			--searchPos;
-			if (searchPos < 0)
+			if (searchPos == 0)
 			{
 				return currentPosition + LINKOFFSET;
 			}
+			--searchPos;
 		}
 		else
 			searchPos = startSearchPos;
 
 		if (searchString2[searchPos2] == currentChar)
 		{
-			--searchPos2;
-			if (searchPos < 0)
+			if (searchPos2 == 0)
 			{
 				return currentPosition + LINKOFFSET;
 			}
+			--searchPos2;
 		}
 		else
 			searchPos2 = startSearchPos2;
-		
+
 		--currentPosition;
 	} /* while */
 
-	
+
 	return LINK_NOT_VALID;
 
 }
@@ -162,13 +181,10 @@ size_t DirectLinkSearch::validateDirectLink(size_t currentPosition)
 
 bool DirectLinkSearch::findChar(TCHAR ch, const TCHAR *charList, size_t charListLen)
 {
-	charListLen--;
-	while (charListLen >= 0)
+	for (size_t searchIndex = 0; searchIndex < charListLen; searchIndex++)
 	{
-		if (ch == charList[charListLen])
+		if (ch == charList[searchIndex])
 			return true;
-		charListLen--;
-
 	}
 	return false;
 }

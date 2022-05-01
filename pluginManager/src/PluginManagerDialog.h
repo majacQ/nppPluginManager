@@ -1,6 +1,5 @@
 #pragma once
 
-#include <TCHAR.H>
 
 #include "StaticDialog.h"
 #include "resource.h"
@@ -12,20 +11,25 @@
 #define PATHENV_MAX_LENGTH  8191
 #define TAB_PAGE_COUNT      3
 
-
+struct POSITIONINFO {
+    HWND handle;
+    int bottomOffset;
+    int leftOffset;
+    int height;
+    int width;
+};
 
 
 class PluginManagerDialog : StaticDialog
 {
 public:
-	PluginManagerDialog() {};
-	~PluginManagerDialog() {};
-
-    void init(HINSTANCE hInst, NppData nppData)
-	{
-		_nppData = nppData;
-		Window::init(hInst, nppData._nppHandle);
+	PluginManagerDialog();
+	~PluginManagerDialog() {
+	    _bottomComponents.clear();
 	};
+
+    void init(HINSTANCE hInst, NppData nppData);
+	void setPluginList(PluginList* pluginList);
 
    	void doDialog();
 
@@ -33,18 +37,19 @@ public:
         
     };
 
-	static BOOL CALLBACK tabWndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam);
-	static BOOL CALLBACK availableTabDlgProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam);
-	static BOOL CALLBACK updatesTabDlgProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam);
-	static BOOL CALLBACK installedTabDlgProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam);
+	static INT_PTR CALLBACK tabWndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam);
+	static INT_PTR CALLBACK availableTabDlgProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam);
+	static INT_PTR CALLBACK updatesTabDlgProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam);
+	static INT_PTR CALLBACK installedTabDlgProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam);
 
 	void setStatus(const TCHAR* status);
 	void setStepProgress(const int percentageComplete);
 	void setStepComplete();
 
+	void refreshLists();
 
 protected :
-	virtual BOOL CALLBACK run_dlgProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
+	virtual INT_PTR CALLBACK run_dlgProc(UINT message, WPARAM wParam, LPARAM lParam);
 	
 private:
 	/* Handles */
@@ -52,9 +57,10 @@ private:
     HWND			_HSource;
 	HWND			_hCloseButton;
 	HWND			_hSettingsButton;
+    HWND            _hNbcLogo;
 
 	/* List of plugins, both available and installed*/
-	PluginList		_pluginList;
+	PluginList*		_pluginList;
 
 	/* ListView controller objects */
 	PluginListView  _installedListView;
@@ -106,6 +112,9 @@ private:
 	int _closeButtonBottomOffset, _closeButtonRightOffset;
 	int _closeButtonWidth, _closeButtonHeight;
 
+    bool _isDownloading;
+    uintptr_t _downloadThread;
+    std::list<std::shared_ptr<POSITIONINFO>> _bottomComponents;
 
 
 	/* Private methods */
@@ -121,14 +130,15 @@ private:
 
 	/* Threaded proc to download the plugin list and populate the views */
 	static void downloadAndPopulate(PVOID pvoid);
+	static void refreshDownload(PVOID pvoid);
+	static void populateLists(PluginManagerDialog* dlg);
 
 	/* Threaded procs to install plugins from a given list */
 	static UINT installThreadProc(LPVOID param);
 
 	/* Installs plugins from given list */ 
 	void startInstall(ProgressDialog* progressDialog, PluginListView *pluginListView, BOOL isUpdate);
-	void installPlugins(ProgressDialog* progressDialog, PluginListView* pluginListView, BOOL isUpdate);
 
-
+    void addBottomComponent(HWND hWnd, WINDOWINFO& wiDlg, UINT id);
 
 };

@@ -1,6 +1,7 @@
 #ifndef _SETTINGSDIALOG_H
 #define _SETTINGSDIALOG_H
 
+struct NppData;
 
 
 
@@ -8,12 +9,11 @@ class SettingsDialog
 {
 
 public:
-	SettingsDialog() {};
+	SettingsDialog(): _nppData(nullptr), _hSelf(nullptr) {};
 	~SettingsDialog() {};    
     
-
-   	void doModal(HWND parent);
-
+	void doModal(NppData *nppData, HWND parent);
+   	
     
 
 protected :
@@ -21,13 +21,13 @@ protected :
 
 private:
 	
-	static BOOL CALLBACK dlgProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
-	BOOL CALLBACK run_dlgProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
+	static INT_PTR CALLBACK dlgProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
+	INT_PTR CALLBACK run_dlgProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 
 	void initialiseOptions();
 	void setOptions();
 
-
+	NppData *_nppData;
 	HWND   _hSelf;
 };
 

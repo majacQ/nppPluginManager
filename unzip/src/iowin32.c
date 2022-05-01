@@ -23,7 +23,7 @@
 
 voidpf ZCALLBACK win32_open_file_func OF((
    voidpf opaque,
-   const char* filename,
+   const TCHAR* filename,
    int mode));
 
 uLong ZCALLBACK win32_read_file_func OF((
@@ -64,7 +64,7 @@ typedef struct
 
 voidpf ZCALLBACK win32_open_file_func (opaque, filename, mode)
    voidpf opaque;
-   const char* filename;
+   const TCHAR* filename;
    int mode;
 {
     const char* mode_fopen = NULL;
@@ -97,10 +97,7 @@ voidpf ZCALLBACK win32_open_file_func (opaque, filename, mode)
         hFile = CreateFile((LPCTSTR)filename, dwDesiredAccess, dwShareMode, NULL,
                       dwCreationDisposition, dwFlagsAndAttributes, NULL);
 
-    if (hFile == INVALID_HANDLE_VALUE)
-        hFile = NULL;
-
-    if (hFile != NULL)
+    if ((hFile != NULL) && (hFile != INVALID_HANDLE_VALUE))
     {
         WIN32FILE_IOWIN w32fiow;
         w32fiow.hf = hFile;
